@@ -13,8 +13,7 @@
 //! Quick start:
 //! \code
 //!   // Subscribe (typically in your component's OnPostInit):
-//!   LES_EventBus.GetInstance().Subscribe(LES_EEventType.PLAYER_KILLED,
-//!   OnKill);
+//!   LES_EventBus.GetInstance().GetInvoker(LES_EEventType.PLAYER_KILLED).Insert(OnKill);
 //!
 //!   void OnKill(LES_EventPayload payload)
 //!   {
@@ -23,19 +22,18 @@
 //!   }
 //!
 //!   // Unsubscribe (in OnDelete) to avoid dangling callbacks:
-//!   LES_EventBus.GetInstance().Unsubscribe(LES_EEventType.PLAYER_KILLED,
-//!   OnKill);
+//!   LES_EventBus.GetInstance().GetInvoker(LES_EEventType.PLAYER_KILLED).Remove(OnKill);
 //! \endcode
 //------------------------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------------------------
 //! All built-in event types dispatched by LES.
 enum LES_EEventType {
-   PLAYER_KILLED,
-   PLAYER_CONNECTED,
-   PLAYER_DISCONNECTED,
-   ZONE_CAPTURED,
-   VEHICLE_DESTROYED,
+  PLAYER_KILLED,
+  PLAYER_CONNECTED,
+  PLAYER_DISCONNECTED,
+  ZONE_CAPTURED,
+  VEHICLE_DESTROYED,
 }
 
 //------------------------------------------------------------------------------------------------
@@ -48,102 +46,97 @@ enum LES_EEventType {
 //!   m_UserData — attach any script object for server-side logic. Use string
 //!   tags for any data that must also reach clients.
 class LES_EventPayload {
-   //! Player/entity ID of whoever caused the event (-1 if not applicable).
-   int m_iInstigatorId;
+  //! Player/entity ID of whoever caused the event (-1 if not applicable).
+  int m_iInstigatorId;
 
-   //! Player/entity ID of whoever received the event (-1 if not applicable).
-   int m_iTargetId;
+  //! Player/entity ID of whoever received the event (-1 if not applicable).
+  int m_iTargetId;
 
-   //! Short freeform context string (zone name, death cause, prefab name, etc.).
-   string m_sContext;
+  //! Short freeform context string (zone name, death cause, prefab name, etc.).
+  string m_sContext;
 
-   //! Whether this event should be replicated to clients. Default true.
-   //! Set to false to keep an event entirely server-side.
-   bool m_bReplicateToClients;
+  //! Whether this event should be replicated to clients. Default true.
+  //! Set to false to keep an event entirely server-side.
+  bool m_bReplicateToClients;
 
-   //! Set internally by Broadcast() so the replicator knows which built-in event
-   //! type to send. Not intended to be set by mod code.
-   int m_iReplicationEventType;
+  //! Set internally by Broadcast() so the replicator knows which built-in event
+  //! type to send. Not intended to be set by mod code.
+  int m_iReplicationEventType;
 
-   //! Arbitrary server-only object. Use Class.Cast() on the receiving end.
-   //! Never replicated.
-   Class m_UserData;
+  //! Arbitrary server-only object. Use Class.Cast() on the receiving end.
+  //! Never replicated.
+  Class m_UserData;
 
-   //! Arbitrary string key/value metadata. Replicated via SerializeTags().
-   private ref map<string, string> m_mTags;
+  //! Arbitrary string key/value metadata. Replicated via SerializeTags().
+  private ref map<string, string> m_mTags;
 
-   //------------------------------------------------------------------------------------------------
-   void LES_EventPayload(int instigatorId = -1, int targetId = -1, string context = "", bool replicateToClients = true) {
-      m_iInstigatorId = instigatorId;
-      m_iTargetId = targetId;
-      m_sContext = context;
-      m_bReplicateToClients = replicateToClients;
-      m_mTags = new map<string, string>();
-   }
+  //------------------------------------------------------------------------------------------------
+  void LES_EventPayload(int instigatorId = -1, int targetId = -1,
+                        string context = "", bool replicateToClients = true) {
+    m_iInstigatorId = instigatorId;
+    m_iTargetId = targetId;
+    m_sContext = context;
+    m_bReplicateToClients = replicateToClients;
+    m_mTags = new map<string, string>();
+  }
 
-   //------------------------------------------------------------------------------------------------
-   //! Attach a string key/value pair. Replicated to clients.
-   void SetTag(string key, string value) {
-      m_mTags[key] = value;
-   }
+  //------------------------------------------------------------------------------------------------
+  //! Attach a string key/value pair. Replicated to clients.
+  void SetTag(string key, string value) { m_mTags[key] = value; }
 
-   //------------------------------------------------------------------------------------------------
-   //! Read a tag value, or empty string if the key is absent.
-   string GetTag(string key) {
-      if (m_mTags.Contains(key))
-         return m_mTags[key];
+  //------------------------------------------------------------------------------------------------
+  //! Read a tag value, or empty string if the key is absent.
+  string GetTag(string key) {
+    if (m_mTags.Contains(key))
+      return m_mTags[key];
+    return string.Empty;
+  }
+
+  //------------------------------------------------------------------------------------------------
+  //! True if the given tag key is present.
+  bool HasTag(string key) { return m_mTags.Contains(key); }
+
+  //------------------------------------------------------------------------------------------------
+  //! Number of tags currently attached.
+  int GetTagCount() { return m_mTags.Count(); }
+
+  //------------------------------------------------------------------------------------------------
+  //! Serialise all tags into a pipe-delimited string for RPC transport.
+  //! Format: "key1=value1|key2=value2". Returns empty string when there are no
+  //! tags.
+  string SerializeTags() {
+    if (m_mTags.IsEmpty())
       return string.Empty;
-   }
 
-   //------------------------------------------------------------------------------------------------
-   //! True if the given tag key is present.
-   bool HasTag(string key) {
-      return m_mTags.Contains(key);
-   }
+    string result;
+    bool first = true;
 
-   //------------------------------------------------------------------------------------------------
-   //! Number of tags currently attached.
-   int GetTagCount() {
-      return m_mTags.Count();
-   }
+    foreach (string key, string value : m_mTags) {
+      if (!first)
+        result += "|";
+      result += key + "=" + value;
+      first = false;
+    }
 
-   //------------------------------------------------------------------------------------------------
-   //! Serialise all tags into a pipe-delimited string for RPC transport.
-   //! Format: "key1=value1|key2=value2". Returns empty string when there are no
-   //! tags.
-   string SerializeTags() {
-      if (m_mTags.IsEmpty())
-         return string.Empty;
+    return result;
+  }
 
-      string result;
-      bool first = true;
+  //------------------------------------------------------------------------------------------------
+  //! Rebuild tags from a string produced by SerializeTags().
+  void DeserializeTags(string serialized) {
+    if (serialized.IsEmpty())
+      return;
 
-      foreach (string key, string value : m_mTags) {
-         if (!first)
-            result += "|";
-         result += key + "=" + value;
-         first = false;
-      }
+    array<string> pairs = {};
+    serialized.Split("|", pairs, false);
 
-      return result;
-   }
-
-   //------------------------------------------------------------------------------------------------
-   //! Rebuild tags from a string produced by SerializeTags().
-   void DeserializeTags(string serialized) {
-      if (serialized.IsEmpty())
-         return;
-
-      array<string> pairs = {};
-      serialized.Split("|", pairs, false);
-
-      foreach (string pair : pairs) {
-         array<string> kv = {};
-         pair.Split("=", kv, false);
-         if (kv.Count() == 2)
-            m_mTags[kv[0]] = kv[1];
-      }
-   }
+    foreach (string pair : pairs) {
+      array<string> kv = {};
+      pair.Split("=", kv, false);
+      if (kv.Count() == 2)
+        m_mTags[kv[0]] = kv[1];
+    }
+  }
 }
 
 //------------------------------------------------------------------------------------------------
@@ -156,203 +149,174 @@ typedef ScriptInvokerBase<LES_EventCallbackMethod> LES_ScriptInvoker;
 //------------------------------------------------------------------------------------------------
 //! Central pub/sub event bus. Access via LES_EventBus.GetInstance().
 class LES_EventBus {
-   private static ref LES_EventBus s_Instance;
+  private static ref LES_EventBus s_Instance;
 
-   //! Built-in event invokers: one per LES_EEventType.
-   private ref map<int, ref LES_ScriptInvoker> m_mInvokers;
+  //! Built-in event invokers: one per LES_EEventType.
+  private ref map<int, ref LES_ScriptInvoker> m_mInvokers;
 
-   //! Custom event invokers: dynamic id -> invoker.
-   private ref map<int, ref LES_ScriptInvoker> m_mCustomInvokers;
+  //! Custom event invokers: dynamic id -> invoker.
+  private ref map<int, ref LES_ScriptInvoker> m_mCustomInvokers;
 
-   //! Custom event registry: "modId:eventName" -> dynamic id.
-   private ref map<string, int> m_mCustomEvents;
+  //! Custom event registry: "modId:eventName" -> dynamic id.
+  private ref map<string, int> m_mCustomEvents;
 
-   //! Counter for assigning unique custom event IDs.
-   private int m_iNextCustomId;
+  //! Counter for assigning unique custom event IDs.
+  private int m_iNextCustomId;
 
-   //! Fired on the server for every replicable event. The GameMode subscribes
-   //! here to forward events to clients over RPC, keeping the bus
-   //! network-agnostic.
-   private ref LES_ScriptInvoker m_ReplicationHook;
+  //! Fired on the server for every replicable event. The GameMode subscribes
+  //! here to forward events to clients over RPC, keeping the bus
+  //! network-agnostic.
+  private ref LES_ScriptInvoker m_ReplicationHook;
 
-   //------------------------------------------------------------------------------------------------
-   void LES_EventBus() {
-      m_mInvokers = new map<int, ref LES_ScriptInvoker>();
-      m_mCustomInvokers = new map<int, ref LES_ScriptInvoker>();
-      m_mCustomEvents = new map<string, int>();
-      m_iNextCustomId = 10000;
-      m_ReplicationHook = new LES_ScriptInvoker();
-   }
+  //------------------------------------------------------------------------------------------------
+  void LES_EventBus() {
+    m_mInvokers = new map<int, ref LES_ScriptInvoker>();
+    m_mCustomInvokers = new map<int, ref LES_ScriptInvoker>();
+    m_mCustomEvents = new map<string, int>();
+    m_iNextCustomId = 10000;
+    m_ReplicationHook = new LES_ScriptInvoker();
+  }
 
-   //------------------------------------------------------------------------------------------------
-   //! Returns the global singleton, creating it on first call.
-   static LES_EventBus GetInstance() {
-      if (!s_Instance)
-         s_Instance = new LES_EventBus();
-      return s_Instance;
-   }
+  //------------------------------------------------------------------------------------------------
+  //! Returns the global singleton, creating it on first call.
+  static LES_EventBus GetInstance() {
+    if (!s_Instance)
+      s_Instance = new LES_EventBus();
+    return s_Instance;
+  }
 
-   //------------------------------------------------------------------------------------------------
-   //! True if the bus singleton has been created. Lets callers check without
-   //! forcing creation (e.g. during teardown).
-   static bool IsInitialised() {
-      return s_Instance != null;
-   }
+  //------------------------------------------------------------------------------------------------
+  //! True if the bus singleton has been created. Lets callers check without
+  //! forcing creation (e.g. during teardown).
+  static bool IsInitialised() { return s_Instance != null; }
 
-   //------------------------------------------------------------------------------------------------
-   //! Destroy the singleton. Called by the GameMode patch on world unload so a
-   //! fresh world starts with a clean bus and no stale subscriptions.
-   static void _Reset() {
-      s_Instance = null;
-   }
+  //------------------------------------------------------------------------------------------------
+  //! Destroy the singleton. Called by the GameMode patch on world unload so a
+  //! fresh world starts with a clean bus and no stale subscriptions.
+  static void _Reset() { s_Instance = null; }
 
-   // -----------------------------------------------------------------------------------------
-   // Built-in events
-   // -----------------------------------------------------------------------------------------
+  // -----------------------------------------------------------------------------------------
+  // Built-in events
+  // -----------------------------------------------------------------------------------------
 
-   //------------------------------------------------------------------------------------------------
-   //! Get the ScriptInvoker for a built-in event type. Advanced users can call
-   //! Insert/Remove directly; most should use Subscribe()/Unsubscribe() below.
-   LES_ScriptInvoker GetInvoker(LES_EEventType eventType) {
-      int key = eventType;
-      if (!m_mInvokers.Contains(key))
-         m_mInvokers[key] = new LES_ScriptInvoker();
-      return m_mInvokers[key];
-   }
+  //------------------------------------------------------------------------------------------------
+  //! Get the ScriptInvoker for a built-in event type, creating it on first use.
+  //! Subscribe with GetInvoker(type).Insert(callback) and unsubscribe with
+  //! GetInvoker(type).Remove(callback). Always pair the two — remove your
+  //! callback in OnDelete so it never fires on a destroyed object.
+  LES_ScriptInvoker GetInvoker(LES_EEventType eventType) {
+    int key = eventType;
+    if (!m_mInvokers.Contains(key))
+      m_mInvokers[key] = new LES_ScriptInvoker();
+    return m_mInvokers[key];
+  }
 
-   //------------------------------------------------------------------------------------------------
-   //! Subscribe a callback to a built-in event. Convenience wrapper over
-   //! GetInvoker().Insert().
-   //! \param eventType Event to listen for
-   //! \param callback  void Callback(LES_EventPayload payload)
-   void Subscribe(LES_EEventType eventType, LES_EventCallbackMethod callback) {
-      GetInvoker(eventType).Insert(callback);
-   }
+  //------------------------------------------------------------------------------------------------
+  //! Dispatch a built-in event to all local subscribers. On the server, also
+  //! fires the replication hook (if the event is replicable) so clients receive
+  //! it. Normally called by the built-in listeners; mods may call it to emit
+  //! synthetic events.
+  void Broadcast(LES_EEventType eventType, notnull LES_EventPayload payload) {
+    DispatchLocal(eventType, payload);
 
-   //------------------------------------------------------------------------------------------------
-   //! Unsubscribe a previously registered callback. Always pair this with
-   //! Subscribe() in your OnDelete to avoid invoking callbacks on destroyed
-   //! objects.
-   void Unsubscribe(LES_EEventType eventType, LES_EventCallbackMethod callback) {
-      int key = eventType;
-      if (m_mInvokers.Contains(key))
-         m_mInvokers[key].Remove(callback);
-   }
+    if (Replication.IsServer() && payload.m_bReplicateToClients) {
+      payload.m_iReplicationEventType = eventType;
+      m_ReplicationHook.Invoke(payload);
+    }
+  }
 
-   //------------------------------------------------------------------------------------------------
-   //! Dispatch a built-in event to all local subscribers. On the server, also
-   //! fires the replication hook (if the event is replicable) so clients receive
-   //! it. Normally called by the built-in listeners; mods may call it to emit
-   //! synthetic events.
-   void Broadcast(LES_EEventType eventType, notnull LES_EventPayload payload) {
-      DispatchLocal(eventType, payload);
+  //------------------------------------------------------------------------------------------------
+  //! Dispatch to local subscribers only, skipping the replication hook.
+  //! Called on clients after receiving an RPC, so the event isn't bounced back.
+  void BroadcastLocal(LES_EEventType eventType,
+                      notnull LES_EventPayload payload) {
+    DispatchLocal(eventType, payload);
+  }
 
-      if (Replication.IsServer() && payload.m_bReplicateToClients) {
-         payload.m_iReplicationEventType = eventType;
-         m_ReplicationHook.Invoke(payload);
-      }
-   }
+  //------------------------------------------------------------------------------------------------
+  //! True if an invoker has been created for the given built-in event, i.e. at
+  //! least one subscriber has requested it. Lets callers skip building an
+  //! expensive payload when nobody is listening. (Note: an invoker persists
+  //! after its last unsubscribe, so this can return true with zero live
+  //! callbacks — treat it as a cheap hint.)
+  bool HasSubscribers(LES_EEventType eventType) {
+    int key = eventType;
+    return m_mInvokers.Contains(key);
+  }
 
-   //------------------------------------------------------------------------------------------------
-   //! Dispatch to local subscribers only, skipping the replication hook.
-   //! Called on clients after receiving an RPC, so the event isn't bounced back.
-   void BroadcastLocal(LES_EEventType eventType, notnull LES_EventPayload payload) {
-      DispatchLocal(eventType, payload);
-   }
+  //------------------------------------------------------------------------------------------------
+  //! The replication hook. The GameMode subscribes here to forward replicable
+  //! events to clients. Mods generally don't need to touch this.
+  LES_ScriptInvoker GetReplicationHook() { return m_ReplicationHook; }
 
-   //------------------------------------------------------------------------------------------------
-   //! True if at least one callback is subscribed to the given built-in event.
-   //! Useful to skip building an expensive payload when nobody is listening.
-   bool HasSubscribers(LES_EEventType eventType) {
-      int key = eventType;
-      return m_mInvokers.Contains(key) && m_mInvokers[key].Count() > 0;
-   }
+  // -----------------------------------------------------------------------------------------
+  // Custom events
+  // -----------------------------------------------------------------------------------------
 
-   //------------------------------------------------------------------------------------------------
-   //! The replication hook. The GameMode subscribes here to forward replicable
-   //! events to clients. Mods generally don't need to touch this.
-   LES_ScriptInvoker GetReplicationHook() {
-      return m_ReplicationHook;
-   }
+  //------------------------------------------------------------------------------------------------
+  //! Register a custom event and receive its unique runtime ID. Calling this
+  //! twice with the same modId/eventName returns the same ID (and warns once).
+  //! \param modId     Your mod's unique identifier string
+  //! \param eventName Short descriptive name, e.g. "AIRDROP_CALLED"
+  //! \return Stable integer ID for use with the custom-event methods below
+  int RegisterCustomEvent(string modId, string eventName) {
+    string key = modId + ":" + eventName;
 
-   // -----------------------------------------------------------------------------------------
-   // Custom events
-   // -----------------------------------------------------------------------------------------
+    if (m_mCustomEvents.Contains(key)) {
+      Print("[LES] Custom event already registered: " + key, LogLevel.WARNING);
+      return m_mCustomEvents[key];
+    }
 
-   //------------------------------------------------------------------------------------------------
-   //! Register a custom event and receive its unique runtime ID. Calling this
-   //! twice with the same modId/eventName returns the same ID (and warns once).
-   //! \param modId     Your mod's unique identifier string
-   //! \param eventName Short descriptive name, e.g. "AIRDROP_CALLED"
-   //! \return Stable integer ID for use with the custom-event methods below
-   int RegisterCustomEvent(string modId, string eventName) {
-      string key = modId + ":" + eventName;
+    int id = m_iNextCustomId;
+    m_iNextCustomId++;
+    m_mCustomEvents[key] = id;
 
-      if (m_mCustomEvents.Contains(key)) {
-         Print("[LES] Custom event already registered: " + key, LogLevel.WARNING);
-         return m_mCustomEvents[key];
-      }
+    Print("[LES] Registered custom event '" + key + "' -> id=" + id);
+    return id;
+  }
 
-      int id = m_iNextCustomId;
-      m_iNextCustomId++;
-      m_mCustomEvents[key] = id;
+  //------------------------------------------------------------------------------------------------
+  //! Look up a previously registered custom event ID, or -1 if it doesn't
+  //! exist. Lets a subscriber resolve an ID registered by another script
+  //! without re-registering.
+  int FindCustomEvent(string modId, string eventName) {
+    string key = modId + ":" + eventName;
+    if (m_mCustomEvents.Contains(key))
+      return m_mCustomEvents[key];
+    return -1;
+  }
 
-      Print("[LES] Registered custom event '" + key + "' -> id=" + id);
-      return id;
-   }
+  //------------------------------------------------------------------------------------------------
+  //! Get the ScriptInvoker for a custom event ID, creating it on first use.
+  //! Subscribe with GetCustomInvoker(id).Insert(callback) and unsubscribe with
+  //! GetCustomInvoker(id).Remove(callback).
+  LES_ScriptInvoker GetCustomInvoker(int eventId) {
+    if (!m_mCustomInvokers.Contains(eventId))
+      m_mCustomInvokers[eventId] = new LES_ScriptInvoker();
+    return m_mCustomInvokers[eventId];
+  }
 
-   //------------------------------------------------------------------------------------------------
-   //! Look up a previously registered custom event ID, or -1 if it doesn't
-   //! exist. Lets a subscriber resolve an ID registered by another script
-   //! without re-registering.
-   int FindCustomEvent(string modId, string eventName) {
-      string key = modId + ":" + eventName;
-      if (m_mCustomEvents.Contains(key))
-         return m_mCustomEvents[key];
-      return -1;
-   }
+  //------------------------------------------------------------------------------------------------
+  //! Dispatch a custom event to its local subscribers.
+  //! Custom events are local/server-only — they may carry arbitrary m_UserData
+  //! that can't be replicated, so mods handle their own networking if they need
+  //! it.
+  void BroadcastCustom(int eventId, notnull LES_EventPayload payload) {
+    if (!m_mCustomInvokers.Contains(eventId))
+      return;
+    m_mCustomInvokers[eventId].Invoke(payload);
+  }
 
-   //------------------------------------------------------------------------------------------------
-   //! Get the ScriptInvoker for a custom event ID.
-   LES_ScriptInvoker GetCustomInvoker(int eventId) {
-      if (!m_mCustomInvokers.Contains(eventId))
-         m_mCustomInvokers[eventId] = new LES_ScriptInvoker();
-      return m_mCustomInvokers[eventId];
-   }
+  // -----------------------------------------------------------------------------------------
+  // Internal
+  // -----------------------------------------------------------------------------------------
 
-   //------------------------------------------------------------------------------------------------
-   //! Subscribe a callback to a custom event.
-   void SubscribeCustom(int eventId, LES_EventCallbackMethod callback) {
-      GetCustomInvoker(eventId).Insert(callback);
-   }
-
-   //------------------------------------------------------------------------------------------------
-   //! Unsubscribe a callback from a custom event.
-   void UnsubscribeCustom(int eventId, LES_EventCallbackMethod callback) {
-      if (m_mCustomInvokers.Contains(eventId))
-         m_mCustomInvokers[eventId].Remove(callback);
-   }
-
-   //------------------------------------------------------------------------------------------------
-   //! Dispatch a custom event to its local subscribers.
-   //! Custom events are local/server-only — they may carry arbitrary m_UserData
-   //! that can't be replicated, so mods handle their own networking if they need
-   //! it.
-   void BroadcastCustom(int eventId, notnull LES_EventPayload payload) {
-      if (!m_mCustomInvokers.Contains(eventId))
-         return;
-      m_mCustomInvokers[eventId].Invoke(payload);
-   }
-
-   // -----------------------------------------------------------------------------------------
-   // Internal
-   // -----------------------------------------------------------------------------------------
-
-   //------------------------------------------------------------------------------------------------
-   private void DispatchLocal(LES_EEventType eventType, notnull LES_EventPayload payload) {
-      int key = eventType;
-      if (!m_mInvokers.Contains(key))
-         return;
-      m_mInvokers[key].Invoke(payload);
-   }
+  //------------------------------------------------------------------------------------------------
+  private void DispatchLocal(LES_EEventType eventType,
+                             notnull LES_EventPayload payload) {
+    int key = eventType;
+    if (!m_mInvokers.Contains(key))
+      return;
+    m_mInvokers[key].Invoke(payload);
+  }
 }
