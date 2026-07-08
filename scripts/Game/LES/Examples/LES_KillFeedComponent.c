@@ -28,73 +28,74 @@ class LES_KillFeedComponentClass : ScriptComponentClass {}
 //------------------------------------------------------------------------------------------------
 //! Listens for LES events and emits a human-readable kill feed.
 class LES_KillFeedComponent : ScriptComponent {
-  //------------------------------------------------------------------------------------------------
-  override void OnPostInit(IEntity owner) {
-    super.OnPostInit(owner);
+   //------------------------------------------------------------------------------------------------
+   override void OnPostInit(IEntity owner) {
+      super.OnPostInit(owner);
 
-    // Subscribe to the events we care about. Runs on every machine: the server
-    // broadcasts locally and replicates, clients receive via RPC and broadcast
-    // locally — so a client-side feed lights up from replicated events too.
-    LES_EventBus bus = LES_EventBus.GetInstance();
-    bus.GetInvoker(LES_EEventType.PLAYER_KILLED).Insert(OnPlayerKilled);
-    bus.GetInvoker(LES_EEventType.PLAYER_CONNECTED).Insert(OnPlayerConnected);
-  }
-
-  //------------------------------------------------------------------------------------------------
-  override void OnDelete(IEntity owner) {
-    // Always mirror every Insert with a Remove here. If the bus has already
-    // been torn down (world unload), IsInitialised() guards against recreating
-    // it just to remove callbacks.
-    if (LES_EventBus.IsInitialised()) {
+      // Subscribe to the events we care about. Runs on every machine: the server
+      // broadcasts locally and replicates, clients receive via RPC and broadcast
+      // locally — so a client-side feed lights up from replicated events too.
       LES_EventBus bus = LES_EventBus.GetInstance();
-      bus.GetInvoker(LES_EEventType.PLAYER_KILLED).Remove(OnPlayerKilled);
-      bus.GetInvoker(LES_EEventType.PLAYER_CONNECTED).Remove(OnPlayerConnected);
-    }
+      bus.GetInvoker(LES_EEventType.PLAYER_KILLED).Insert(OnPlayerKilled);
+      bus.GetInvoker(LES_EEventType.PLAYER_CONNECTED).Insert(OnPlayerConnected);
+   }
 
-    super.OnDelete(owner);
-  }
+   //------------------------------------------------------------------------------------------------
+   override void OnDelete(IEntity owner) {
+      // Always mirror every Insert with a Remove here. If the bus has already
+      // been torn down (world unload), IsInitialised() guards against recreating
+      // it just to remove callbacks.
+      if (LES_EventBus.IsInitialised()) {
+         LES_EventBus bus = LES_EventBus.GetInstance();
+         bus.GetInvoker(LES_EEventType.PLAYER_KILLED).Remove(OnPlayerKilled);
+         bus.GetInvoker(LES_EEventType.PLAYER_CONNECTED).Remove(OnPlayerConnected);
+      }
 
-  //------------------------------------------------------------------------------------------------
-  //! PLAYER_KILLED handler. Resolves player names and prints a feed line.
-  protected void OnPlayerKilled(LES_EventPayload payload) {
-    string killer = ResolveName(payload.m_iInstigatorId);
-    string victim = ResolveName(payload.m_iTargetId);
+      super.OnDelete(owner);
+   }
 
-    string line;
-    if (payload.m_iInstigatorId == payload.m_iTargetId ||
-        payload.m_iInstigatorId <= 0)
-      line = victim + " died";
-    else
-      line = killer + " eliminated " + victim;
+   //------------------------------------------------------------------------------------------------
+   //! PLAYER_KILLED handler. Resolves player names and prints a feed line.
+   protected void OnPlayerKilled(LES_EventPayload payload) {
+      string killer = ResolveName(payload.m_iInstigatorId);
+      string victim = ResolveName(payload.m_iTargetId);
 
-    EmitFeedLine(line);
-  }
+      string line;
+      if (payload.m_iInstigatorId == payload.m_iTargetId || payload.m_iInstigatorId <= 0)
+         line = victim + " died";
+      else
+         line = killer + " eliminated " + victim;
 
-  //------------------------------------------------------------------------------------------------
-  //! PLAYER_CONNECTED handler.
-  protected void OnPlayerConnected(LES_EventPayload payload) {
-    EmitFeedLine(ResolveName(payload.m_iInstigatorId) + " joined the server");
-  }
+      EmitFeedLine(line);
+   }
 
-  //------------------------------------------------------------------------------------------------
-  //! Turn a player ID into a display name, with a sensible fallback.
-  protected string ResolveName(int playerId) {
-    if (playerId <= 0)
-      return "Unknown";
+   //------------------------------------------------------------------------------------------------
+   //! PLAYER_CONNECTED handler.
+   protected void OnPlayerConnected(LES_EventPayload payload) {
+      EmitFeedLine(ResolveName(payload.m_iInstigatorId) + " joined the server");
+   }
 
-    PlayerManager pm = GetGame().GetPlayerManager();
-    if (!pm)
-      return "Player " + playerId;
+   //------------------------------------------------------------------------------------------------
+   //! Turn a player ID into a display name, with a sensible fallback.
+   protected string ResolveName(int playerId) {
+      if (playerId <= 0)
+         return "Unknown";
 
-    string name = pm.GetPlayerName(playerId);
-    if (name.IsEmpty())
-      return "Player " + playerId;
+      PlayerManager pm = GetGame().GetPlayerManager();
+      if (!pm)
+         return "Player " + playerId;
 
-    return name;
-  }
+      string name = pm.GetPlayerName(playerId);
+      if (name.IsEmpty())
+         return "Player " + playerId;
 
-  //------------------------------------------------------------------------------------------------
-  //! Output a single feed line. Swap the Print() for an on-screen hint, chat
-  //! message, or custom HUD widget to surface the feed in-game.
-  protected void EmitFeedLine(string line) { Print("[LES KillFeed] " + line); }
+      return name;
+   }
+
+   //------------------------------------------------------------------------------------------------
+   //! Output a single feed line. Swap the Print() for an on-screen hint, chat
+   //! message, or custom HUD widget to surface the feed in-game.
+   protected void EmitFeedLine(string line) {
+      Print("[LES KillFeed] " + line);
+   }
 }

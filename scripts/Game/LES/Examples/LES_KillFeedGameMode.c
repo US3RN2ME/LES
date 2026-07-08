@@ -19,52 +19,48 @@
 //! lines.
 //------------------------------------------------------------------------------------------------
 modded class SCR_BaseGameMode {
-  //------------------------------------------------------------------------------------------------
-  override void OnGameStart() {
-    super.OnGameStart();
+   //------------------------------------------------------------------------------------------------
+   override void OnGameStart() {
+      super.OnGameStart();
 
-    // The bus is already initialised by the core patch's OnWorldPostProcess.
-    // Attach feed consumers to the events. Runs on every machine.
-    LES_EventBus bus = LES_EventBus.GetInstance();
-    bus.GetInvoker(LES_EEventType.PLAYER_KILLED).Insert(LES_KillFeed_OnKilled);
-    bus.GetInvoker(LES_EEventType.PLAYER_CONNECTED)
-        .Insert(LES_KillFeed_OnConnected);
-  }
+      // The bus is already initialised by the core patch's OnWorldPostProcess.
+      // Attach feed consumers to the events. Runs on every machine.
+      LES_EventBus bus = LES_EventBus.GetInstance();
+      bus.GetInvoker(LES_EEventType.PLAYER_KILLED).Insert(LES_KillFeed_OnKilled);
+      bus.GetInvoker(LES_EEventType.PLAYER_CONNECTED).Insert(LES_KillFeed_OnConnected);
+   }
 
-  //------------------------------------------------------------------------------------------------
-  protected void LES_KillFeed_OnKilled(LES_EventPayload payload) {
-    string victim = LES_KillFeed_Name(payload.m_iTargetId);
-    string line;
+   //------------------------------------------------------------------------------------------------
+   protected void LES_KillFeed_OnKilled(LES_EventPayload payload) {
+      string victim = LES_KillFeed_Name(payload.m_iTargetId);
+      string line;
 
-    if (payload.m_iInstigatorId <= 0 ||
-        payload.m_iInstigatorId == payload.m_iTargetId)
-      line = victim + " died";
-    else
-      line =
-          LES_KillFeed_Name(payload.m_iInstigatorId) + " eliminated " + victim;
+      if (payload.m_iInstigatorId <= 0 || payload.m_iInstigatorId == payload.m_iTargetId)
+         line = victim + " died";
+      else
+         line = LES_KillFeed_Name(payload.m_iInstigatorId) + " eliminated " + victim;
 
-    Print("[LES KillFeed] " + line);
-  }
+      Print("[LES KillFeed] " + line);
+   }
 
-  //------------------------------------------------------------------------------------------------
-  protected void LES_KillFeed_OnConnected(LES_EventPayload payload) {
-    Print("[LES KillFeed] " + LES_KillFeed_Name(payload.m_iInstigatorId) +
-          " joined the server");
-  }
+   //------------------------------------------------------------------------------------------------
+   protected void LES_KillFeed_OnConnected(LES_EventPayload payload) {
+      Print("[LES KillFeed] " + LES_KillFeed_Name(payload.m_iInstigatorId) + " joined the server");
+   }
 
-  //------------------------------------------------------------------------------------------------
-  protected string LES_KillFeed_Name(int playerId) {
-    if (playerId <= 0)
-      return "Unknown";
+   //------------------------------------------------------------------------------------------------
+   protected string LES_KillFeed_Name(int playerId) {
+      if (playerId <= 0)
+         return "Unknown";
 
-    PlayerManager pm = GetGame().GetPlayerManager();
-    if (!pm)
-      return "Player " + playerId;
+      PlayerManager pm = GetGame().GetPlayerManager();
+      if (!pm)
+         return "Player " + playerId;
 
-    string name = pm.GetPlayerName(playerId);
-    if (name.IsEmpty())
-      return "Player " + playerId;
+      string name = pm.GetPlayerName(playerId);
+      if (name.IsEmpty())
+         return "Player " + playerId;
 
-    return name;
-  }
+      return name;
+   }
 }
