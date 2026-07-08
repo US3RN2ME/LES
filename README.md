@@ -2,7 +2,7 @@
 
 A tiny **publish/subscribe event bus** for Arma Reforger (Enfusion engine). One shared channel for game events — with server→client replication built in.
 
-Arma Reforger **1.7.x** · MIT · zero setup: load the mod and it works.
+Arma Reforger **1.7.x** · APL-SA · zero setup: load the mod and it works.
 
 ---
 
@@ -173,4 +173,4 @@ Local/server-side by design (payloads may carry non-replicable `m_UserData`):
 
 ## License
 
-MIT — use in any mod, commercial or free. Attribution appreciated, not required.
+[Arma Public License Share Alike (APL-SA)](https://www.bohemia.net/community/licenses/arma-public-license-share-alike) — free to use and build upon in any Arma mod with attribution; derivatives must keep the same license.
