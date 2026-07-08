@@ -1,22 +1,20 @@
 //------------------------------------------------------------------------------------------------
 //! LES Example — Kill Feed (zero-setup variant)
 //!
-//! Same behaviour as LES_KillFeedComponent, but wired through the GameMode
-//! patch so it needs NO World Editor work — load the mod and watch the log. Use
-//! THIS variant to test quickly; use the component variant
-//! (LES_KillFeedComponent.c) as the reference pattern for real consumers that
-//! live on their own entities.
+//! Same behaviour as LES_KillFeedComponent, but wired through the GameMode patch so it
+//! needs NO World Editor work — load the mod and watch the log. Use THIS variant to test
+//! quickly; use the component variant (LES_KillFeedComponent.c) as the reference pattern
+//! for real consumers that live on their own entities.
 //!
 //! NOTE ON METHOD CHOICE
-//!   The core framework already overrides OnWorldPostProcess (in
-//!   LES_GameModePatch.c). Enforce Script forbids two overrides of the same
-//!   method on one class, so this example hooks OnGameStart instead — it runs
-//!   once the match starts, by which point the bus is already initialised. Pick
-//!   a method the core doesn't use for your own GameMode-level consumers, or
-//!   (cleaner) live on your own entity like the component variant does.
+//!   The core framework already overrides OnWorldPostProcess (in LES_GameModePatch.c).
+//!   Enforce Script forbids two overrides of the same method on one class, so this
+//!   example hooks OnGameStart instead — it runs once the match starts, by which point
+//!   the bus is already initialised. Pick a method the core doesn't use for your own
+//!   GameMode-level consumers, or (cleaner) live on your own entity like the component
+//!   variant does.
 //!
-//! Keep only ONE kill-feed example enabled at a time, or you'll get duplicate
-//! lines.
+//! Keep only ONE kill-feed example enabled at a time, or you'll get duplicate lines.
 //------------------------------------------------------------------------------------------------
 modded class SCR_BaseGameMode {
    //------------------------------------------------------------------------------------------------

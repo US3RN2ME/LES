@@ -2,24 +2,23 @@
 //! LES Example — Kill Feed
 //!
 //! A complete, self-contained example of consuming LES events. It subscribes to
-//! PLAYER_KILLED and PLAYER_CONNECTED and prints a formatted feed line for
-//! each. This doubles as a live demo (watch the log / extend it to on-screen
-//! text) and as a reference for the recommended subscribe/unsubscribe
-//! lifecycle.
+//! PLAYER_KILLED and PLAYER_CONNECTED and prints a formatted feed line for each.
+//! This doubles as a live demo (watch the log / extend it to on-screen text) and as
+//! a reference for the recommended subscribe/unsubscribe lifecycle.
 //!
 //! HOW TO USE THIS EXAMPLE
-//!   Attach the LES_KillFeedComponent to any entity that exists on clients —
-//!   the GameMode prefab is the simplest choice. The component subscribes in
-//!   OnPostInit and unsubscribes in OnDelete, which is the pattern you should
-//!   copy for your own consumers so callbacks never fire on a destroyed object.
+//!   Attach the LES_KillFeedComponent to any entity that exists on clients — the
+//!   GameMode prefab is the simplest choice. The component subscribes in OnPostInit
+//!   and unsubscribes in OnDelete, which is the pattern you should copy for your own
+//!   consumers so callbacks never fire on a destroyed object.
 //!
 //! WHY A COMPONENT
-//!   Components give you a natural OnPostInit / OnDelete pair that maps cleanly
-//!   onto Subscribe / Unsubscribe. You can subscribe from anywhere (a manager,
-//!   a menu, a static init) — this is just the most common and safest shape.
+//!   Components give you a natural OnPostInit / OnDelete pair that maps cleanly onto
+//!   Subscribe / Unsubscribe. You can subscribe from anywhere (a manager, a menu, a
+//!   static init) — this is just the most common and safest shape.
 //!
-//! This file is illustrative. Delete the Examples/ folder if you only want the
-//! core framework; nothing else depends on it.
+//! This file is illustrative. Delete the Examples/ folder if you only want the core
+//! framework; nothing else depends on it.
 //------------------------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------------------------
@@ -42,9 +41,9 @@ class LES_KillFeedComponent : ScriptComponent {
 
    //------------------------------------------------------------------------------------------------
    override void OnDelete(IEntity owner) {
-      // Always mirror every Insert with a Remove here. If the bus has already
-      // been torn down (world unload), IsInitialised() guards against recreating
-      // it just to remove callbacks.
+      // Always mirror every Insert with a Remove here. If the bus has already been
+      // torn down (world unload), IsInitialised() guards against recreating it just
+      // to remove callbacks.
       if (LES_EventBus.IsInitialised()) {
          LES_EventBus bus = LES_EventBus.GetInstance();
          bus.GetInvoker(LES_EEventType.PLAYER_KILLED).Remove(OnPlayerKilled);
@@ -93,8 +92,8 @@ class LES_KillFeedComponent : ScriptComponent {
    }
 
    //------------------------------------------------------------------------------------------------
-   //! Output a single feed line. Swap the Print() for an on-screen hint, chat
-   //! message, or custom HUD widget to surface the feed in-game.
+   //! Output a single feed line. Swap the Print() for an on-screen hint, chat message,
+   //! or custom HUD widget to surface the feed in-game.
    protected void EmitFeedLine(string line) {
       Print("[LES KillFeed] " + line);
    }

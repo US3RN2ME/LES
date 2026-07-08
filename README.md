@@ -58,7 +58,8 @@ LES_EventPayload p = new LES_EventPayload(-1, -1, "north_airfield");
 p.SetTag("cargo", "supplies");
 LES_EventBus.GetInstance().BroadcastCustom(evt, p);
 
-// Mod B (a completely different mod, no dependency on Mod A's code) reacts:
+// Mod B (a completely different mod, no dependency on Mod A's code) reacts —
+// on the server AND on clients, since custom events replicate too (v1.1):
 int evt = LES_EventBus.GetInstance().FindCustomEvent("AirdropMod", "AIRDROP_LANDED");
 if (evt != -1)
     LES_EventBus.GetInstance().GetCustomInvoker(evt).Insert(OnAirdrop);
@@ -148,7 +149,7 @@ LES_EventBus.GetInstance().Broadcast(LES_EEventType.PLAYER_KILLED, p);
 
 ### Custom events (mod-to-mod)
 
-Local/server-side by design (payloads may carry non-replicable `m_UserData`):
+Replicated to clients like built-ins (v1.1+). Replication travels by string key, so producer and subscribers just register the same `modId`/`eventName` on any machine — no ordering or ID coordination needed. `m_UserData` never replicates; use tags for client-bound data.
 
 | Method | Purpose |
 |--------|---------|

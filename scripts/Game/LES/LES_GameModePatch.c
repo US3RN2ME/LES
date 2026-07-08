@@ -1,25 +1,21 @@
 //------------------------------------------------------------------------------------------------
-//! LES — GameMode integration (initialisation, listeners, and replication
-//! transport).
+//! LES — GameMode integration (initialisation, listeners, and replication transport).
 //!
-//! Everything that patches SCR_BaseGameMode lives in THIS single file on
-//! purpose. Enforce Script requires that a method referenced by Insert() is
-//! visible in the same compilation scope as the Insert() call. Splitting the
-//! registration calls (OnWorldPostProcess) from the listener/RPC method bodies
-//! across separate modded-class files triggers "Can't make callback from
-//! unknown method". Keeping them together avoids that entirely.
+//! Everything that patches SCR_BaseGameMode lives in THIS single file on purpose. Enforce
+//! Script requires that a method referenced by Insert() is visible in the same compilation
+//! scope as the Insert() call. Splitting the registration calls (OnWorldPostProcess) from the
+//! listener/RPC method bodies across separate modded-class files triggers
+//! "Can't make callback from unknown method". Keeping them together avoids that entirely.
 //!
 //! Responsibilities, all on the SCR_BaseGameMode partial:
-//!   OnWorldPostProcess — init the bus; on the server wire the replication hook
-//!   and register
+//!   OnWorldPostProcess — init the bus; on the server wire the replication hook and register
 //!                        the built-in game listeners.
 //!   OnGameEnd          — tear the bus down so the next world starts clean.
-//!   LES_On*            — listener bodies that translate base-game callbacks
-//!   into LES events. LES_OnReplicableEvent / LES_RpcReceiveEvent —
-//!   server→client RPC transport.
+//!   LES_On*            — listener bodies that translate base-game callbacks into LES events.
+//!   LES_OnReplicableEvent / LES_RpcReceiveEvent — server→client RPC transport.
 //!
-//! Works out of the box: the GameMode entity always exists and always has an
-//! RplComponent, so no World Editor setup is required for replication.
+//! Works out of the box: the GameMode entity always exists and always has an RplComponent,
+//! so no World Editor setup is required for replication.
 //------------------------------------------------------------------------------------------------
 modded class SCR_BaseGameMode {
    //------------------------------------------------------------------------------------------------
@@ -34,8 +30,7 @@ modded class SCR_BaseGameMode {
          return;
       }
 
-      // Server: forward replicable events to clients (see LES_OnReplicableEvent
-      // below).
+      // Server: forward replicable events to clients (see LES_OnReplicableEvent below).
       bus.GetReplicationHook().Insert(LES_OnReplicableEvent);
 
       // Server: register built-in game listeners (bodies below, same file/scope).
@@ -48,16 +43,15 @@ modded class SCR_BaseGameMode {
    }
 
    //------------------------------------------------------------------------------------------------
-   //! Destroy the bus singleton when the world unloads so the next world starts
-   //! clean, with no stale subscriptions carried over from a previous session.
+   //! Destroy the bus singleton when the world unloads so the next world starts clean,
+   //! with no stale subscriptions carried over from a previous session.
    override void OnGameEnd() {
       LES_EventBus._Reset();
       super.OnGameEnd();
    }
 
    // ===========================================================================================
-   // Built-in game listeners (server-only; registration above is guarded by
-   // IsServer)
+   // Built-in game listeners (server-only; registration above is guarded by IsServer)
    // ===========================================================================================
 
    //------------------------------------------------------------------------------------------------
@@ -77,8 +71,7 @@ modded class SCR_BaseGameMode {
    }
 
    //------------------------------------------------------------------------------------------------
-   //! PLAYER_DISCONNECTED — m_iInstigatorId = player ID, tag "cause" =
-   //! KickCauseCode
+   //! PLAYER_DISCONNECTED — m_iInstigatorId = player ID, tag "cause" = KickCauseCode
    protected void LES_OnPlayerDisconnected(int playerId, KickCauseCode cause, int timeout) {
       LES_EventPayload payload = new LES_EventPayload(playerId, -1, "disconnected");
       payload.SetTag("cause", cause.ToString());
@@ -109,21 +102,37 @@ modded class SCR_BaseGameMode {
    // ===========================================================================================
 
    //------------------------------------------------------------------------------------------------
-   //! Server-side hook target. Subscribed to LES_EventBus.GetReplicationHook()
-   //! above. Fires for every replicable event and sends it via RPC.
+   //! Server-side hook target. Subscribed to LES_EventBus.GetReplicationHook() above.
+   //! Fires for every replicable event — built-in or custom — and sends it via RPC.
+   //! Custom events travel by string key (per-machine numeric IDs can't cross the network).
    void LES_OnReplicableEvent(LES_EventPayload payload) {
       if (!Replication.IsServer())
          return;
+
+      if (!payload.m_sReplicationEventKey.IsEmpty()) {
+         Rpc(LES_RpcReceiveCustomEvent, payload.m_sReplicationEventKey, payload.m_iInstigatorId, payload.m_iTargetId, payload.m_sContext, payload.SerializeTags());
+         return;
+      }
 
       Rpc(LES_RpcReceiveEvent, payload.m_iReplicationEventType, payload.m_iInstigatorId, payload.m_iTargetId, payload.m_sContext, payload.SerializeTags());
    }
 
    //------------------------------------------------------------------------------------------------
-   //! Executed on every client. Rebuilds the payload from primitives and
-   //! dispatches it to local subscribers via the bus (without re-replicating).
+   //! Executed on every client. Rebuilds the payload from primitives and dispatches it to
+   //! local subscribers via the bus (without re-replicating).
    [RplRpc(RplChannel.Reliable, RplRcver.Broadcast)] protected void LES_RpcReceiveEvent(int eventType, int instigatorId, int targetId, string context, string serializedTags) {
       LES_EventPayload payload = new LES_EventPayload(instigatorId, targetId, context, false);
       payload.DeserializeTags(serializedTags);
       LES_EventBus.GetInstance().BroadcastLocal(eventType, payload);
+   }
+
+   //------------------------------------------------------------------------------------------------
+   //! Executed on every client for replicated CUSTOM events. Resolves the string key
+   //! to this machine's local event ID (auto-registering it on first receipt) and
+   //! dispatches to local subscribers.
+   [RplRpc(RplChannel.Reliable, RplRcver.Broadcast)] protected void LES_RpcReceiveCustomEvent(string eventKey, int instigatorId, int targetId, string context, string serializedTags) {
+      LES_EventPayload payload = new LES_EventPayload(instigatorId, targetId, context, false);
+      payload.DeserializeTags(serializedTags);
+      LES_EventBus.GetInstance()._DispatchCustomFromNetwork(eventKey, payload);
    }
 }
