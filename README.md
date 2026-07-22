@@ -83,18 +83,25 @@ All built-in events are replicated to clients automatically (reliable RPC). Set 
 
 `LES_EventBus` is a **pure local dispatcher** — it knows nothing about networking. Replication is layered on top via dependency inversion: the bus exposes a replication hook (`ScriptInvoker`), and the GameMode patch subscribes to it and performs the RPC. The GameMode always exists and always has an `RplComponent`, which is why LES needs no World Editor setup.
 
+```mermaid
+flowchart TD
+    cb["Game callback<br/>(e.g. OnPlayerKilled)"] --> patch["LES_GameModePatch"]
+    patch --> broadcast["EventBus.Broadcast()"]
+
+    broadcast --> localS["Local subscribers<br/>(server-side)"]
+    broadcast --> hook["Replication hook<br/>(ScriptInvoker, server only)"]
+
+    hook -->|"reliable RPC"| clients["Clients"]
+    clients --> broadcastLocal["EventBus.BroadcastLocal()"]
+    broadcastLocal --> localC["Local subscribers<br/>(client-side)"]
+
+    classDef server fill:#1f6feb,stroke:#0d419d,color:#fff
+    classDef client fill:#238636,stroke:#116329,color:#fff
+    class cb,patch,broadcast,localS,hook server
+    class clients,broadcastLocal,localC client
 ```
- game callback ──> GameModePatch ──> EventBus.Broadcast()
-                                        │
-                       ┌────────────────┴────────────────┐
-                       ▼                                  ▼
-               local subscribers               replication hook (server)
-                                                          │
-                                              RPC ──> clients ──> BroadcastLocal()
-                                                                        │
-                                                                        ▼
-                                                                local subscribers
-```
+
+The blue path runs on the server; the green path is what every client sees once the RPC arrives. A payload with `m_bReplicateToClients = false` simply stops at the replication hook and never crosses the network.
 
 Just two core files:
 
@@ -103,6 +110,64 @@ Just two core files:
 | `LES_EventBus.c` | Pub/sub core, payload type, custom-event registry |
 | `LES_GameModePatch.c` | Init/teardown, built-in listeners, server→client RPC — all in one file (Enforce Script requires `Insert()` targets to be visible in the same compilation scope) |
 | `Examples/` | Worked examples — safe to delete |
+
+### How the pieces fit together
+
+```mermaid
+classDiagram
+    class LES_EventBus {
+        +GetInstance() LES_EventBus
+        +IsInitialised() bool
+        +GetInvoker(type) ScriptInvoker
+        +Broadcast(type, payload)
+        +BroadcastLocal(type, payload)
+        +RegisterCustomEvent(modId, name) int
+        +FindCustomEvent(modId, name) int
+        +GetCustomInvoker(id) ScriptInvoker
+        +BroadcastCustom(id, payload)
+    }
+    class LES_EventPayload {
+        +int m_iInstigatorId
+        +int m_iTargetId
+        +string m_sContext
+        +bool m_bReplicateToClients
+        +Object m_UserData
+        +SetTag(key, value)
+        +GetTag(key) string
+    }
+    class LES_GameModePatch {
+        +OnWorldPostProcess()
+        -listens to game callbacks
+        -performs server to client RPC
+    }
+    class YourMod {
+        +OnKill(payload)
+    }
+
+    LES_GameModePatch ..> LES_EventBus : Broadcast()
+    LES_EventBus --> LES_EventPayload : dispatches
+    YourMod ..> LES_EventBus : Insert() / Remove()
+    LES_EventBus ..> YourMod : invokes callback
+```
+
+### Custom-event round trip (mod-to-mod)
+
+```mermaid
+sequenceDiagram
+    participant A as Mod A (producer)
+    participant Bus as LES_EventBus
+    participant Net as RPC / network
+    participant B as Mod B (consumer)
+
+    B->>Bus: FindCustomEvent("AirdropMod", "AIRDROP_LANDED")
+    B->>Bus: GetCustomInvoker(id).Insert(OnAirdrop)
+    A->>Bus: RegisterCustomEvent("AirdropMod", "AIRDROP_LANDED")
+    A->>Bus: BroadcastCustom(id, payload)
+    Bus-->>B: OnAirdrop(payload)  %% server-side
+    Bus->>Net: replicate by string key
+    Net-->>Bus: resolve key on client
+    Bus-->>B: OnAirdrop(payload)  %% client-side
+```
 
 ## Usage
 
